@@ -1,5 +1,7 @@
+import pickle
 import pygame
 import random
+import argparse
 
 class FishAquariumGame():
 
@@ -10,15 +12,28 @@ class FishAquariumGame():
 		self.ScrCenterX = self.ScreenWidth / 2
 		self.ScrCenterY = self.ScreenHeight / 2
 		self.gameOver = False
-		self.screen = pygame.display.set_mode((self.ScreenWidth, self.ScreenHeight))
 		self.clock = pygame.time.Clock()
 		self.mouseX = 0;
 		self.mouseY = 0;
+		self.paused = False
 
 		self.fc = FishController();
 		self.Insp = Inspector();
 
+	def load(self, filename):
+		self.simName = filename[:-4]
+
+		with open(filename, 'rb') as f:
+			fish, food = pickle.load(f)
+		self.fc.fishFood = food
+		self.fc.fishInTank = fish
+
+	def save(self, filename):
+		with open(filename + ".dat", 'wb') as f:
+    			pickle.dump([self.fc.fishInTank, self.fc.fishFood], f, protocol=2)
+
 	def start(self):
+		self.screen = pygame.display.set_mode((self.ScreenWidth, self.ScreenHeight))
 		while not self.gameOver:
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
@@ -28,7 +43,14 @@ class FishAquariumGame():
 						self.fc.addFish(random.randint(self.ScrCenterX - 200,self.ScrCenterX + 200), random.randint(self.ScrCenterY - 200,self.ScrCenterY + 200))
 				if event.type == pygame.MOUSEBUTTONDOWN:
 					if event.button == 1: #left click
-						self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
+						#Dangling code from Inspector pane class
+						if( self.ScreenWidth - 280 < self.mouseX < self.ScreenWidth -280 + 70 and self.ScreenHeight - 60 < self.mouseY < self.ScreenWidth - 60 + 25):
+							self.save(self.simName)	
+						elif( self.ScreenWidth - 200 < self.mouseX < self.ScreenWidth -200 + 80 and self.ScreenHeight - 60 < self.mouseY < self.ScreenWidth - 60 + 25):
+							self.paused = not self.paused 
+						else: 
+							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
+
 					if event.button == 3: #right click
 						for i in range(0, 10):
 							self.fc.addFood(random.randint(10,self.ScreenWidth - 300 - 10), random.randint(10,self.ScreenHeight + 10))
@@ -40,13 +62,14 @@ class FishAquariumGame():
 			
 			#Main Game Loop
 			self.screen.fill((0,0,0))
-			self.fc.moveFish()
-			self.fc.feedFish()
+			if not self.paused:
+				self.fc.moveFish()
+				self.fc.feedFish()
 
 			#Draws
 			self.fc.drawFood(self.screen)
 			self.fc.drawFish(self.screen)
-			self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
+			self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY, self.paused)
 			
 			pygame.display.flip()
 			self.clock.tick(60)
@@ -56,7 +79,7 @@ class Inspector():
 	def __init__(self):
 		self.currentItem = None
 
-	def drawPane(self, screen, gameWidth, gameHeight, mosX, mosY):
+	def drawPane(self, screen, gameWidth, gameHeight, mosX, mosY, isPaused):
 		#Draw Pane
 		pygame.draw.rect(screen, (40, 40, 40), pygame.Rect(gameWidth - 300, 0, 300, gameHeight))
 
@@ -64,12 +87,33 @@ class Inspector():
 		fontSize = 30
 		font = pygame.font.SysFont("comicsansms",fontSize)
 		mouseText = font.render("X: " + str(mosX) + " Y: " + str(mosY), True, (120, 50, 20))
-		screen.blit(mouseText, (gameWidth - 250, gameHeight - 50))	
+		screen.blit(mouseText, (gameWidth - 290, gameHeight - 25))	
+			
+		#Draw Save button
+		saveText = font.render("Save", True, (50, 50, 50))
+		if( gameWidth - 280 < mosX < gameWidth -280 + 70 and gameHeight - 60 < mosY < gameHeight - 60 + 25):
+			pygame.draw.rect(screen, (70, 70, 230),(gameWidth - 280,gameHeight - 60,70,25))
+		else: 
+			pygame.draw.rect(screen, (100, 100, 200),(gameWidth - 280,gameHeight - 60,70,25))
+		screen.blit(saveText, (gameWidth - 270, gameHeight - 55))	
+		
+		#Draw Pause/Play button
+		if(isPaused):
+			saveText = font.render("Play", True, (50, 50, 50))
+		else:
+			saveText = font.render("Pause", True, (50, 50, 50))
+	
+		if( gameWidth - 200 < mosX < gameWidth -200 + 80 and gameHeight - 60 < mosY < gameHeight - 60 + 25):
+			pygame.draw.rect(screen, (70, 70, 230),(gameWidth - 200,gameHeight - 60,80,25))
+		else: 
+			pygame.draw.rect(screen, (100, 100, 200),(gameWidth - 200,gameHeight - 60,80,25))
+		screen.blit(saveText, (gameWidth - 190, gameHeight - 55))	
+		
 
 		drawingYIter = 60
 		if self.currentItem != None:
 			#Draw Fish at top
-			pygame.draw.rect(screen, self.currentItem.color, pygame.Rect(gameWidth - 150, drawingYIter, self.currentItem.lenX, self.currentItem.lenY))
+			pygame.draw.rect(screen, self.currentItem.color, pygame.Rect(gameWidth - 200, drawingYIter, self.currentItem.lenX, self.currentItem.lenY))
 			drawingYIter+=self.currentItem.lenY + 10
 		
 	
@@ -79,7 +123,7 @@ class Inspector():
 				drawingYIter += 10 + fontSize
 				val = getattr(self.currentItem, attr)
 				attrText = font.render(attr + ": " + str(val), True, (120, 50, 20))
-				screen.blit(attrText, (gameWidth - 225, drawingYIter))	
+				screen.blit(attrText, (gameWidth - 255, drawingYIter))	
 
 class FishController():
 
@@ -109,6 +153,7 @@ class FishController():
 			if(fishIn):
 				print("made it here")
 				chosenFish = fish
+		
 		return chosenFish 
 		
 
@@ -191,7 +236,18 @@ class Fish():
 				self.Health = self.Health + foo.nutrition;
 				foodToEatIDs.append(foo.uid)		
 		return foodToEatIDs
-					
+			
+parser = argparse.ArgumentParser(description="Fish Aquarium Simulation")
+parser.add_argument("filename", nargs="?", help="Load a saved aquarium")
+args = parser.parse_args()
 
 game = FishAquariumGame();
+if(args.filename):
+	print(args.filename)
+	game.load(args.filename)
+else:
+	fileName = input("Enter the Name for this Fish Simulation: ")
+	game.simName = fileName
+	
 game.start();
+
