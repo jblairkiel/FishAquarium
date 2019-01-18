@@ -45,12 +45,12 @@ import random
 	#print("Run Time: " + str(endTime - startTime) + " seconds");
 
 class Neural_Network(object):
-	def __init__(self, xPredicted):
+	def __init__(self):
 		#parameters
-		self.inputSize = 2
-		self.outputSize = 1
+		self.inputSize = 4
+		self.outputSize = 4
 		self.hiddenSize = 50 #1000
-		self.xPredicted = xPredicted
+		self.xPredicted = None
 
 		#weights
 		self.W1 = np.random.randn(
@@ -106,11 +106,10 @@ class Neural_Network(object):
 		np.savetxt("w1.txt", self.W1, fmt="%s")
 		np.savetxt("w2.txt", self.W2, fmt="%s")
 
-	def predict(self):
-		print("Predicted data based on trained weights: ")
+	def predict(self, xPredicted):
+		#print("Predicted data based on trained weights: ")
 		before = self.xPredicted;
-		print("Input (scaled): \n" + str(self.xPredicted))
-		print("Output: \n" + str(self.forward(self.xPredicted)))
+		#print("Input (scaled): \n" + str(self.xPredicted))
+		#print("Output: \n" + str(self.forward(self.xPredicted)))
 		after = self.forward(self.xPredicted);
-		return before, after;
-main();
+		return after;

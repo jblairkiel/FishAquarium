@@ -1,5 +1,8 @@
 import pickle
+import sys
+import os
 import pygame
+import numpy as np
 import random
 import argparse
 
@@ -13,6 +16,8 @@ class FishAquariumGame():
 		self.ScrCenterY = self.ScreenHeight / 2
 		self.gameOver = False
 		self.clock = pygame.time.Clock()
+		self.generation = 1
+		self.genTimer = 30 #seconds per generation
 		self.mouseX = 0;
 		self.mouseY = 0;
 		self.paused = False
@@ -34,6 +39,7 @@ class FishAquariumGame():
 
 	def start(self):
 		self.screen = pygame.display.set_mode((self.ScreenWidth, self.ScreenHeight))
+		self.startTime = pygame.time.get_ticks();
 		while not self.gameOver:
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
@@ -48,8 +54,8 @@ class FishAquariumGame():
 							self.save(self.simName)	
 						elif( self.ScreenWidth - 200 < self.mouseX < self.ScreenWidth -200 + 80 and self.ScreenHeight - 60 < self.mouseY < self.ScreenHeight- 60 + 25):
 							self.paused = not self.paused 
-						if( self.ScreenWidth - 100 < self.mouseX < self.ScreenWidth - 100 + 80 and self.ScreenHeight - 60 < self.mouseY < self.ScreenHeight- 60 + 25):
-							self.fc.printCurrentHighScores();
+						if( self.ScreenWidth - 110 < self.mouseX < self.ScreenWidth - 110 + 95 and self.ScreenHeight - 60 < self.mouseY < self.ScreenHeight- 60 + 25):
+							self.fc.printCurrentHighScores(self.generation);
 						else: 
 							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
 
@@ -61,17 +67,28 @@ class FishAquariumGame():
 					position = event.pos
 					self.mouseX = position[0]
 					self.mouseY = position[1]	
-			
-			#Main Game Loop
+
 			self.screen.fill((0,0,0))
 			if not self.paused:
+				#Timer Logic
+				self.passedTime = pygame.time.get_ticks() - self.startTime 
+				if(self.passedTime > 1000):
+					self.startTime = pygame.time.get_ticks()
+					if(self.genTimer == 0):
+						self.fc.newGeneration(self.generation)
+						self.generation += 1
+						self.genTimer = 30
+					else:
+						self.genTimer -= 1
+		
+
 				self.fc.moveFish(self.ScreenWidth, self.ScreenHeight)
 				self.fc.feedFish()
 
 			#Draws
 			self.fc.drawFood(self.screen)
 			self.fc.drawFish(self.screen)
-			self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY, self.paused)
+			self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY, self.paused, self.generation, self.genTimer)
 			
 			pygame.display.flip()
 			self.clock.tick(60)
@@ -81,13 +98,18 @@ class Inspector():
 	def __init__(self):
 		self.currentItem = None
 
-	def drawPane(self, screen, gameWidth, gameHeight, mosX, mosY, isPaused):
+	def drawPane(self, screen, gameWidth, gameHeight, mosX, mosY, isPaused, generation, time):
 		#Draw Pane
 		pygame.draw.rect(screen, (40, 40, 40), pygame.Rect(gameWidth - 300, 0, 300, gameHeight))
 
-		#Type Mouse Cursor Pos Bottom
+		#Generation Summary
 		fontSize = 30
 		font = pygame.font.SysFont("comicsansms",fontSize)
+		generationText = font.render("Gen: " + str(generation) + " | " + str(time), True, (120, 50, 20))
+		screen.blit(generationText, (gameWidth - 290, 5))	
+
+
+		#Type Mouse Cursor Pos Bottom
 		mouseText = font.render("X: " + str(mosX) + " Y: " + str(mosY), True, (120, 50, 20))
 		screen.blit(mouseText, (gameWidth - 290, gameHeight - 25))	
 			
@@ -114,11 +136,11 @@ class Inspector():
 		#Draw HighScore Button
 		highScoreText = font.render("Hi Scores", True, (50, 50, 50))
 	
-		if( gameWidth - 100 < mosX < gameWidth - 100 + 80 and gameHeight - 60 < mosY < gameHeight - 60 + 25):
-			pygame.draw.rect(screen, (70, 70, 230),(gameWidth - 100,gameHeight - 60,80,25))
+		if( gameWidth - 110 < mosX < gameWidth - 110 + 95 and gameHeight - 60 < mosY < gameHeight - 60 + 25):
+			pygame.draw.rect(screen, (70, 70, 230),(gameWidth - 110,gameHeight - 60,95,25))
 		else: 
-			pygame.draw.rect(screen, (100, 100, 200),(gameWidth - 100,gameHeight - 60,80,25))
-		screen.blit(highScoreText, (gameWidth - 90, gameHeight - 55))	
+			pygame.draw.rect(screen, (100, 100, 200),(gameWidth - 110,gameHeight - 60,95,25))
+		screen.blit(highScoreText, (gameWidth - 110, gameHeight - 55))	
 
 
 		
@@ -156,6 +178,25 @@ class FishController():
 		fish = Fish(x,y);	
 		self.fishInTank.append(fish);
 
+	def newGeneration(self, gen):
+		self.printCurrentHighScores(gen)	
+		self.fishInTank.sort(key=lambda x: x.Health, reverse=True)
+
+		#Competing for resources, some must die
+		if len(self.fishInTank) > 10:
+			numToCut = int(.5*int(len(self.fishInTank)))
+			if(numToCut == 0):
+				numToCut = 1
+
+			self.fishInTank = self.fishInTank[0:numToCut]	
+		
+		newFish = []	
+		for fish in self.fishInTank:
+			newFish.append(fish.reproduce());
+
+		self.fishInTank = self.fishInTank + newFish
+		
+
 	def getAquariumItem(self, x, y):
 		chosenFish = None
 		for fish in self.fishInTank:	
@@ -165,13 +206,15 @@ class FishController():
 		
 		return chosenFish 
 	
-	def printCurrentHighScores(self):
+	def printCurrentHighScores(self, gen):
 		fishScores = self.fishInTank
 		fishScores.sort(key=lambda x: x.Health, reverse=True)
 		
 		print("-------High Scores-------")
+		print("-----Generation:" + str(gen)+ "-------")
 		for fish in fishScores:
 			print(str(fish.uid) + ": " + str(fish.Health))
+		print("\n")
 			
 		
 
@@ -228,6 +271,7 @@ class Fish():
 
 	def __init__(self, x=0, y=0):
 		self.uid = random.randint(0,63000)
+		self.NN = Neural_Network()
 		self.x = x	
 		self.y = y
 		self.lenX = 30
@@ -235,34 +279,73 @@ class Fish():
 		self.Generation = 1
 		self.Sight = 20
 		self.Health = 100
+		self.Energy = 25
+		self.geneTree = []
 		self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+
+
+	def __str__(self):
+		fishAttributes = [a for a in dir(self) if not a.startswith('__') and not callable(getattr(self,a))]
+		attrText = 'Fish: ( '
+		for attr in foodAttributes: 
+			val = getattr(self, attr)
+			attrText += attr + ": " + str(val) + ", "
+		attrText += " ) " 
+		return attrText
+		
+	def reproduce(self):
+		
+		childFish = Fish()
+		childFish.x = self.x;
+		childFish.y = self.y;
+		childFish.lenX = self.lenX;
+		childFish.lenY = self.lenY;
+		childFish.Generation = self.Generation + 1
+		childFish.Sight = self.Sight
+		childFish.Health = self.Health
+		childFish.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+		childFish.geneTree = self.geneTree + [self.uid]
+		return childFish
+
+
 	
 	def draw(self,screen):
 		pygame.draw.rect(screen, self.color, pygame.Rect(self.x, self.y, self.lenX, self.lenY))
 
 	def move(self, screenWidth, screenHeight):
-		#Find Nearby Food
+		#Ensure Fish must rest
+		if self.Energy == 0:
+			#give rest
+			self.Energy = np.random.normal(-25, 1, 500)[random.randint(0,499)]
+		elif self.Energy == -1:
+			#reset Energy	
+			self.Energy = np.random.normal(25, 1, 500)[random.randint(0,499)]
 
-		#Run X,Y and nearby items to food
-
-	#	dx = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
-	#	dy = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
-		dx = max(min(10,(random.randint(-2, 2) * int(self.Health / 100))),-10) ;
-		dy = max(min(10,(random.randint(-2, 2) * int(self.Health / 100))),-10) ;
-		#Make sure it is within the bounds of the screeen
-		if(0 > self.x + dx ):
-			self.x += 2
-		elif( self.x + dx + self.lenX > screenWidth - 300):
-			self.x -= 2	
+		elif self.Energy < -1:
+			#wait
+			self.Energy = int(self.Energy + 1)
 		else:
-			self.x = self.x + dx;
+			self.Energy = int(self.Energy - 1)
+			#Find Nearby Food
 
-		if(0 > self.y + dy):
-			self.y += 2
-		elif( self.y + dy + self.lenY > screenHeight):
-			self.y -= 2
-		else:
-			self.y = self.y + dy
+			#Run X,Y and nearby items to food
+			dx = max(min(10,(random.randint(-2, 2) * int(self.Health / 100))),-10) ;
+			dy = max(min(10,(random.randint(-2, 2) * int(self.Health / 100))),-10) ;
+
+			#Make sure it is within the bounds of the screeen
+			if(0 > self.x + dx ):
+				self.x += 2
+			elif( self.x + dx + self.lenX > screenWidth - 300):
+				self.x -= 2	
+			else:
+				self.x = self.x + dx;
+
+			if(0 > self.y + dy):
+				self.y += 2
+			elif( self.y + dy + self.lenY > screenHeight):
+				self.y -= 2
+			else:
+				self.y = self.y + dy
 
 	def eat(self, food):
 	
@@ -281,6 +364,8 @@ class Fish():
 				foodToEatIDs.append(foo.uid)		
 		return foodToEatIDs
 			
+sys.path.append(os.path.abspath("NeuralNetwork.py"))
+from NeuralNetwork import Neural_Network
 parser = argparse.ArgumentParser(description="Fish Aquarium Simulation")
 parser.add_argument("filename", nargs="?", help="Load a saved aquarium")
 args = parser.parse_args()
