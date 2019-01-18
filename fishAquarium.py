@@ -44,10 +44,12 @@ class FishAquariumGame():
 				if event.type == pygame.MOUSEBUTTONDOWN:
 					if event.button == 1: #left click
 						#Dangling code from Inspector pane class
-						if( self.ScreenWidth - 280 < self.mouseX < self.ScreenWidth -280 + 70 and self.ScreenHeight - 60 < self.mouseY < self.ScreenWidth - 60 + 25):
+						if( self.ScreenWidth - 280 < self.mouseX < self.ScreenWidth -280 + 70 and self.ScreenHeight - 60 < self.mouseY < self.ScreenHeight- 60 + 25):
 							self.save(self.simName)	
-						elif( self.ScreenWidth - 200 < self.mouseX < self.ScreenWidth -200 + 80 and self.ScreenHeight - 60 < self.mouseY < self.ScreenWidth - 60 + 25):
+						elif( self.ScreenWidth - 200 < self.mouseX < self.ScreenWidth -200 + 80 and self.ScreenHeight - 60 < self.mouseY < self.ScreenHeight- 60 + 25):
 							self.paused = not self.paused 
+						if( self.ScreenWidth - 100 < self.mouseX < self.ScreenWidth - 100 + 80 and self.ScreenHeight - 60 < self.mouseY < self.ScreenHeight- 60 + 25):
+							self.fc.printCurrentHighScores();
 						else: 
 							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
 
@@ -63,7 +65,7 @@ class FishAquariumGame():
 			#Main Game Loop
 			self.screen.fill((0,0,0))
 			if not self.paused:
-				self.fc.moveFish()
+				self.fc.moveFish(self.ScreenWidth, self.ScreenHeight)
 				self.fc.feedFish()
 
 			#Draws
@@ -108,6 +110,17 @@ class Inspector():
 		else: 
 			pygame.draw.rect(screen, (100, 100, 200),(gameWidth - 200,gameHeight - 60,80,25))
 		screen.blit(saveText, (gameWidth - 190, gameHeight - 55))	
+
+		#Draw HighScore Button
+		highScoreText = font.render("Hi Scores", True, (50, 50, 50))
+	
+		if( gameWidth - 100 < mosX < gameWidth - 100 + 80 and gameHeight - 60 < mosY < gameHeight - 60 + 25):
+			pygame.draw.rect(screen, (70, 70, 230),(gameWidth - 100,gameHeight - 60,80,25))
+		else: 
+			pygame.draw.rect(screen, (100, 100, 200),(gameWidth - 100,gameHeight - 60,80,25))
+		screen.blit(highScoreText, (gameWidth - 90, gameHeight - 55))	
+
+
 		
 
 		drawingYIter = 60
@@ -151,6 +164,15 @@ class FishController():
 				chosenFish = fish
 		
 		return chosenFish 
+	
+	def printCurrentHighScores(self):
+		fishScores = self.fishInTank
+		fishScores.sort(key=lambda x: x.Health, reverse=True)
+		
+		print("-------High Scores-------")
+		for fish in fishScores:
+			print(str(fish.uid) + ": " + str(fish.Health))
+			
 		
 
 	def distance(self, fish, x, y):
@@ -167,9 +189,9 @@ class FishController():
 		for fish in self.fishInTank:
 			fish.draw(screen);
 
-	def moveFish(self):
+	def moveFish(self, screenWidth, screenHeight):
 		for fish in self.fishInTank:
-			fish.move();
+			fish.move(screenWidth, screenHeight);
 
 	def feedFish(self):
 		for fish in self.fishInTank:
@@ -177,7 +199,6 @@ class FishController():
 			self.eatenFood = [x for x in self.fishFood if x.uid in eatenFoodIDs]
 			self.fishFood = [x for x in self.fishFood if x.uid not in eatenFoodIDs]
 			for food in self.eatenFood:
-				print(food)
 				del food
 		
 
@@ -219,14 +240,29 @@ class Fish():
 	def draw(self,screen):
 		pygame.draw.rect(screen, self.color, pygame.Rect(self.x, self.y, self.lenX, self.lenY))
 
-	def move(self):
+	def move(self, screenWidth, screenHeight):
 		#Find Nearby Food
 
 		#Run X,Y and nearby items to food
-		dx = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
-		dy = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
-		self.x = self.x + dx;
-		self.y = self.y + dy
+
+	#	dx = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
+	#	dy = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
+		dx = max(min(10,(random.randint(-2, 2) * int(self.Health / 100))),-10) ;
+		dy = max(min(10,(random.randint(-2, 2) * int(self.Health / 100))),-10) ;
+		#Make sure it is within the bounds of the screeen
+		if(0 > self.x + dx ):
+			self.x += 2
+		elif( self.x + dx + self.lenX > screenWidth - 300):
+			self.x -= 2	
+		else:
+			self.x = self.x + dx;
+
+		if(0 > self.y + dy):
+			self.y += 2
+		elif( self.y + dy + self.lenY > screenHeight):
+			self.y -= 2
+		else:
+			self.y = self.y + dy
 
 	def eat(self, food):
 	
