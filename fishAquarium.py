@@ -52,7 +52,7 @@ class FishAquariumGame():
 							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
 
 					if event.button == 3: #right click
-						for i in range(0, 10):
+						for i in range(0, 50):
 							self.fc.addFood(random.randint(10,self.ScreenWidth - 300 - 10), random.randint(10,self.ScreenHeight + 10))
 
 				if event.type == pygame.MOUSEMOTION:
@@ -146,12 +146,8 @@ class FishController():
 	def getAquariumItem(self, x, y):
 		chosenFish = None
 		for fish in self.fishInTank:	
-			#print("Fish X: " + str(fish.x) + " Fish Y: " + str(fish.y))
-			#print("Mos X: " + str(x) + " Mos Y: " + str(y))
-			#print("Fish X + lenX: " + str(fish.x + fish.lenX) + " Fish Y + lenY: " + str(fish.y + fish.lenY))
 			fishIn = self.inFishBounds(fish, x, y)
 			if(fishIn):
-				print("made it here")
 				chosenFish = fish
 		
 		return chosenFish 
@@ -163,10 +159,8 @@ class FishController():
 
 	def inFishBounds(self, fish, x, y):
 		if(fish.x < x < fish.x + fish.lenX and fish.y < y < fish.y + fish.lenY):
-			print("true")
 			return True;
 		else:
-			print("false")
 			return False;
 
 	def drawFish(self, screen):
@@ -183,6 +177,7 @@ class FishController():
 			self.eatenFood = [x for x in self.fishFood if x.uid in eatenFoodIDs]
 			self.fishFood = [x for x in self.fishFood if x.uid not in eatenFoodIDs]
 			for food in self.eatenFood:
+				print(food)
 				del food
 		
 
@@ -190,11 +185,20 @@ class Food():
 
 	def __init__(self, x=0, y=0):
 		self.uid = random.randint(0,63000)
-		print("Food uid is: " + str(self.uid))
 		self.x = x
 		self.y = y
-		self.radius = 5
+		self.radius = 3
 		self.nutrition = 25 
+
+	def __str__(self):
+		foodAttributes = [a for a in dir(self) if not a.startswith('__') and not callable(getattr(self,a))]
+		attrText = 'Food: ( '
+		for attr in foodAttributes: 
+			val = getattr(self, attr)
+			attrText += attr + ": " + str(val) + ", "
+		attrText += " ) " 
+		return attrText
+		
 		
 	def draw(self, screen):
 		pygame.draw.circle(screen,(100, 255, 0), (self.x, self.y), self.radius * 2);
@@ -203,11 +207,12 @@ class Fish():
 
 	def __init__(self, x=0, y=0):
 		self.uid = random.randint(0,63000)
-		print("Fish uid is: " + str(self.uid))
 		self.x = x	
 		self.y = y
-		self.lenX = 60
-		self.lenY = 60
+		self.lenX = 30
+		self.lenY = 30
+		self.Generation = 1
+		self.Sight = 20
 		self.Health = 100
 		self.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
 	
@@ -215,6 +220,9 @@ class Fish():
 		pygame.draw.rect(screen, self.color, pygame.Rect(self.x, self.y, self.lenX, self.lenY))
 
 	def move(self):
+		#Find Nearby Food
+
+		#Run X,Y and nearby items to food
 		dx = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
 		dy = random.randint(-2 * int(self.Health / 100), 2 * int(self.Health / 100));
 		self.x = self.x + dx;
@@ -228,10 +236,10 @@ class Fish():
 			#Food is within box
 			#if (self.x < foo.x < self.x + self.lenX) and (self.y < foo.y < self.y + self.lenY):
 			if( 
-				((self.x < foo.x - foo.radius < self.x + self.lenX) and (self.y < foo.y < self.y - self.lenY)) or 
-				((self.x < foo.x - foo.radius < self.x + self.lenX) and (self.y < foo.y < self.y + self.lenY)) or 
-				((self.x < foo.y + foo.radius < self.x + self.lenX) and (self.y < foo.y < self.y - self.lenY)) or 
-				((self.x < foo.y + foo.radius < self.x + self.lenX) and (self.y < foo.y < self.y + self.lenY))
+				((self.x < foo.x - foo.radius < self.x + self.lenX) and (self.y < foo.y - foo.radius < self.y + self.lenY)) or 
+				((self.x < foo.x - foo.radius < self.x + self.lenX) and (self.y < foo.y + foo.radius < self.y + self.lenY)) or 
+				((self.x < foo.x + foo.radius < self.x + self.lenX) and (self.y < foo.y - foo.radius < self.y + self.lenY)) or 
+				((self.x < foo.x + foo.radius < self.x + self.lenX) and (self.y < foo.y + foo.radius < self.y + self.lenY))
 			):
 				self.Health = self.Health + foo.nutrition;
 				foodToEatIDs.append(foo.uid)		
