@@ -4,13 +4,12 @@ from re import S
 import pygame
 import os
 import random
+from copy import deepcopy
 
 class FishAquariumGame():
 
 	def __init__(self):
 		pygame.init()
-		if (os.path.exists("generation.csv")):
-			os.remove("generation.csv")
 		self.ScreenWidth = 1400 # 1600
 		self.ScreenHeight = 800 # 1000
 		self.ScrCenterX = self.ScreenWidth / 2
@@ -35,9 +34,15 @@ class FishAquariumGame():
 					if event.type == pygame.KEYDOWN:
 						if event.key == pygame.K_SPACE:
 							self.fc.addFish(self.mouseX, self.mouseY)
+						if event.key == pygame.K_n:
+							self.fc.reproduceAll(pygame.time.get_ticks())
+						if event.key == pygame.K_k:
+							self.fc.killAll()
+
+
 					if event.type == pygame.MOUSEBUTTONDOWN:
 						if event.button == 1: #left click
-							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
+							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY, pygame.time.get_ticks())
 						if event.button == 3: #right click
 							self.fc.addFood(self.mouseX, self.mouseY)
 	
@@ -55,13 +60,19 @@ class FishAquariumGame():
 						if event.key == pygame.K_SPACE:
 							for i in range(0, 5):
 								self.fc.addFish(random.randint(self.ScrCenterX - 200,self.ScrCenterX + 200), random.randint(self.ScrCenterY - 200,self.ScrCenterY + 200), pygame.time.get_ticks())
+						if event.key == pygame.K_n:
+							self.fc.reproduceAll(pygame.time.get_ticks())
+						if event.key == pygame.K_k:
+							self.fc.killAll()
+						if event.key == pygame.K_w:
+							self.fc.writeFishToFile()
 					if event.type == pygame.MOUSEBUTTONDOWN:
 						if event.button == 1: #left click
 							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
 						if event.button == 3: #right click
 							for i in range(0, 50):
 								self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
-
+					
 
 					if event.type == pygame.MOUSEMOTION:
 						position = event.pos
@@ -132,10 +143,53 @@ class FishController():
 	def drawFood(self, screen):
 		for food in self.fishFood:
 			food.draw(screen)
+
+	def writeFishToFile(self):
+	
+		if (os.path.exists("generation.csv")):
+			os.remove("generation.csv")
+			
+		with open('generation.csv', 'wt', newline='') as csvfile:
+			genWriter = csv.writer(csvfile, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+			fishAttributes = [a for a in dir(self.fishInTank[0]) if not a.startswith('__') and not callable(getattr(self.fishInTank[0],a))]
+			
+			#UID as Primary Key
+			fishAttributes.insert(0, "uid")
+			genWriter.writerow(fishAttributes)
+			for writeFish in self.fishInTank:
+				writeFish.writeCSVFish(genWriter)
+
+	def killAll(self):
+		#Remove the dead
+		tempFishTank = []
+		for fish in self.fishInTank:
+			if fish.alive:
+				tempFishTank.append(fish)
+			else:
+				del fish
+		self.fishInTank = tempFishTank
+
+	def reproduceAll(self, clock):
+		newTank = []
+		self.fishInTank.sort(key=lambda x: x.Health, reverse=True)	
+		#Take %50
+		for i in range(0, len(self.fishInTank)):
+			prevFish = self.fishInTank[i]
+			newFish = prevFish.reproduce(clock) 
+			#newFish #Attributes.
+			newTank.append(newFish)
+		self.killAll()
+		self.fishInTank = newTank
+		
+
+	def insertFish(self, fish):
+		if (fish != None):
+			self.fishInTank.append(fish);
+			
 	
 	def addFish(self, x=0, y=0, clock=None):
-		fish = Fish(x,y, clock);	
-		self.fishInTank.append(fish);
+		fish = Fish(x,y, clock);
+		self.insertFish(fish)	
 
 	def getAquariumItem(self, x, y):
 		chosenFish = None
@@ -199,15 +253,15 @@ class FishController():
 			isAFishAlive = False
 
 
-		if not (os.path.exists("generation.csv")):
-			if (fishCount > 0) and (isAFishAlive == False):
-				with open('generation.csv', 'wt', newline='') as csvfile:
-					genWriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-					fishAttributes = [a for a in dir(self.fishInTank[0]) if not a.startswith('__') and not callable(getattr(self.fishInTank[0],a))]
-					genWriter.writerow(fishAttributes)
-					for writeFish in self.fishInTank:
-						writeFish.writeCSVFish(genWriter)
-						writeFish.alive = False
+		# if not (os.path.exists("generation.csv")):
+		# 	if (fishCount > 0) and (isAFishAlive == False):
+		# 		with open('generation.csv', 'wt', newline='') as csvfile:
+		# 			genWriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+		# 			fishAttributes = [a for a in dir(self.fishInTank[0]) if not a.startswith('__') and not callable(getattr(self.fishInTank[0],a))]
+		# 			genWriter.writerow(fishAttributes)
+		# 			for writeFish in self.fishInTank:
+		# 				writeFish.writeCSVFish(genWriter)
+		# 				writeFish.alive = False
 		
 		
 
@@ -233,6 +287,9 @@ class Fish():
 		#print("Fish uid is: " + str(self.uid))
 		self.x = x	
 		self.y = y
+		self.ancestors = []
+		self.parent = None
+		self.generation = 1
 		self.lenX = 60
 		self.lenY = 60
 		self.Health = 100
@@ -250,11 +307,78 @@ class Fish():
 		self.age = 0
 		self.alive = True
 
+	def __str__(self):
+		return str(self.uid)
+	def __repr__(self):
+		return str(self)
+
+	def reproduce(self, clock):
+		#childFish = self
+		childFish = deepcopy(self)
+
+
+		# Mutate Function
+		childFish.birth = clock
+		childFish.uid = random.randint(0,63000)
+		childFish.color = (random.randint(0,255), random.randint(0,255), random.randint(0,255))
+		childFish.ancestors.append(self)
+		childFish.generation = self.generation + 1
+		childFish.parent = self
+		return childFish
+
 	def writeCSVFish(self, csvWriter):
+
+
 		fishAttributes = [a for a in dir(self) if not a.startswith('__') and not callable(getattr(self,a))]
+		#Write Ancestors
+		if (self.ancestors != []):
+			for ancestors in self.ancestors:
+				fishVals = []
+				#UID as Primary Key
+				fishVals.append(getattr(ancestors, "uid"))
+				for attr in fishAttributes:
+					if (attr == "parent"):
+						tempParent = getattr(ancestors, attr)
+						tempParentStr = ""
+						if (tempParent != None):
+							tempParentStr = tempParent.uid
+						fishVals.append(tempParentStr)
+					elif (attr == "ancestors"):
+						tempAncestors = getattr(ancestors, attr)
+						print(tempAncestors)
+						tempAncestorsStr = ""
+						if (tempAncestors != []):
+							for anc in tempAncestors:
+								tempAncestorsStr = tempAncestorsStr + str(anc.uid) + ","
+						fishVals.append(tempAncestorsStr)
+					else:
+						fishVals.append(getattr(ancestors, attr))
+						
+
+				#fishAttributes.insert(0, self.uid)
+				csvWriter.writerow(fishVals)
+
+		#Write Self
 		fishVals = []
+		#UID as Primary Key
+		fishVals.append(getattr(self, "uid"))
 		for attr in fishAttributes:
-			fishVals.append(getattr(self, attr))
+			if (attr == "parent"):
+				tempParent = getattr(self, attr)
+				tempParentStr = ""
+				if (tempParent != None):
+					tempParentStr = tempParent.uid
+				fishVals.append(tempParentStr)
+			elif (attr == "ancestors"):
+				tempAncestors = getattr(self, attr)
+				tempAncestorsStr = ""
+				print(tempAncestors)
+				if (tempAncestors != []):
+					for anc in tempAncestors:
+						tempAncestorsStr = tempAncestorsStr + str(anc.uid) + ","
+				fishVals.append(tempAncestorsStr)
+			else:
+				fishVals.append(getattr(self, attr))
 
 		#fishAttributes.insert(0, self.uid)
 		csvWriter.writerow(fishVals)
