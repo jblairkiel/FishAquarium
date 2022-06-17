@@ -59,7 +59,10 @@ class FishAquariumGame():
 					if event.type == pygame.KEYDOWN:
 						if event.key == pygame.K_SPACE:
 							for i in range(0, 5):
-								self.fc.addFish(random.randint(self.ScrCenterX - 200,self.ScrCenterX + 200), random.randint(self.ScrCenterY - 200,self.ScrCenterY + 200), pygame.time.get_ticks())
+								#Centered fish
+								#self.fc.addFish(random.randint(self.ScrCenterX - 200,self.ScrCenterX + 200), random.randint(self.ScrCenterY - 200,self.ScrCenterY + 200), pygame.time.get_ticks())
+								#Spread out fish
+								self.fc.addFish(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10), pygame.time.get_ticks())
 						if event.key == pygame.K_n:
 							self.fc.reproduceAll(pygame.time.get_ticks())
 						if event.key == pygame.K_k:
@@ -231,11 +234,22 @@ class FishController():
 
 	def drawFish(self, screen, curTicks):
 		for fish in self.fishInTank:
-			fish.draw(screen, curTicks);
+			fish.draw(screen, curTicks)
 
 	def moveFish(self):
-		for fish in self.fishInTank:
-			fish.move();
+		for thisFish in self.fishInTank:
+			#Get Objects in vision
+			# Should investigate Speeding up
+			thisFish.objectsInVision = []
+			thisFish.fishInVision = []
+			thisFish.foodInVision = []
+			for food in self.fishFood:
+				thisFish.checkAndAddIfIsInVision(food)
+			for otherFish in self.fishInTank:
+				if (otherFish != thisFish):
+					thisFish.checkAndAddIfIsInVision(otherFish)
+			
+			thisFish.move()
 
 	def feedFish(self):
 		isAFishAlive = None
@@ -270,12 +284,18 @@ class Food():
 	def __init__(self, x=0, y=0):
 		self.uid = random.randint(0,63000)
 		print("Food uid is: " + str(self.uid))
+		self.acquariumType = "Food"
 		self.x = x
 		self.y = y
 		self.radius = 5
 		self.nutrition = 25 
 		self.hitbox = (self.x, self.y, self.radius, self.radius) #
 		
+	def __str__(self):
+		return str(self.uid)
+	def __repr__(self):
+		return str(self)
+
 	def draw(self, screen):
 		self.hitbox = (self.x, self.y, self.radius, self.radius) #
 		pygame.draw.circle(screen,(100, 255, 0), (self.x, self.y), self.radius * 2);
@@ -285,6 +305,7 @@ class Fish():
 	def __init__(self, x=0, y=0, clock=None):
 		self.uid = random.randint(0,63000)
 		#print("Fish uid is: " + str(self.uid))
+		self.acquariumType = "Fish"
 		self.x = x	
 		self.y = y
 		self.ancestors = []
@@ -295,7 +316,11 @@ class Fish():
 		self.Health = 100
 		self.deathNum = 15000 #should be variable rate later
 		self.birth = clock
-		self.visionValueFront = 20
+		self.showVision = True
+		self.objectsInVision = []
+		self.fishInVision = []
+		self.foodInVision = []
+		self.visionValueFront = 60
 		self.visionValueLeft = 10
 		self.visionValueRight = 10
 		self.hitbox = (self.x, self.y, self.lenX, self.lenY) #
@@ -311,6 +336,17 @@ class Fish():
 		return str(self.uid)
 	def __repr__(self):
 		return str(self)
+
+	def checkAndAddIfIsInVision(self, acquariumObject):
+		#If within Bounds add to vision
+		if ((acquariumObject.y < self.lookingBounds[1] + self.lookingBounds[3] and acquariumObject.y  >self.lookingBounds[1]) and # Checks x coords
+			(acquariumObject.x > self.lookingBounds[0] and acquariumObject.x < self.lookingBounds[0] + self.lookingBounds[2])):  # Checks y coords
+			self.objectsInVision.append(acquariumObject)
+			if (acquariumObject.acquariumType == "Food"):
+				self.foodInVision.append(acquariumObject)
+			elif(acquariumObject.acquariumType == "Fish"):
+				self.fishInVision.append(acquariumObject)
+
 
 	def reproduce(self, clock):
 		#childFish = self
@@ -414,7 +450,8 @@ class Fish():
 			self.y + self.lenY + self.visionValueFront)
 		
 		#Fish vision
-		pygame.draw.rect(screen, pygame.Color(55, 55, 55, a=220 ), pygame.Rect(self.lookingBounds[0], self.lookingBounds[1], self.lenX + (2*self.visionValueFront), self.lenY + (2*self.visionValueFront)))
+		if (self.showVision):
+			pygame.draw.rect(screen, pygame.Color(55, 55, 55, a=220 ), pygame.Rect(self.lookingBounds[0], self.lookingBounds[1], self.lenX + (2*self.visionValueFront), self.lenY + (2*self.visionValueFront)))
 
 		#Fish
 		pygame.draw.rect(screen, self.color, pygame.Rect(self.x, self.y, self.lenX, self.lenY))
