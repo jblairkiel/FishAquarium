@@ -1,0 +1,2 @@
+model_checkpoint_path: "/Users/jblairkiel/Documents/FishAquarium/fish_nn.tflearn"
+all_model_checkpoint_paths: "/Users/jblairkiel/Documents/FishAquarium/fish_nn.tflearn"

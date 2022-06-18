@@ -84,8 +84,8 @@ class FishAquariumGame():
 							self.fc.writeFishToFile()
 						if event.key == pygame.K_t:
 							#Train Neural Network with Key "T"
-							nn_model = self.train_model(trainingData, nn_model)
-							self.test_model(nn_model)
+							self.nn_model = self.train_model(trainingData, self.nn_model)
+							#self.test_model(self.nn_model)
 					if event.type == pygame.MOUSEBUTTONDOWN:
 						if event.button == 1: #left click
 							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
@@ -494,6 +494,8 @@ class Fish():
 		pygame.draw.rect(screen, self.color, pygame.Rect(self.x, self.y, self.lenX, self.lenY))
 
 	def move(self):
+		dx = 0
+		dy = 0
 		if self.alive:
 			boundX1 = 0
 			boundX2 = 1400
@@ -531,27 +533,27 @@ class Fish():
 		# 	curObservation.append(self.fishInVision[i].x)
 		# 	curObservation.append(self.fishInVision[i].y)
 		# 	curObservation.append(0)
-		if (self.foodInVision is not []):
+		if (len(self.foodInVision) != 0):
 			if (len(self.foodInVision) < targetFoodSize):
 				counter = 0
 				for i in range(0, len(self.foodInVision)):
-					print(len(self.fishInVision))
-					print(self.fishInVision[i])
-					curObservation.append(self.fishInVision[i].x)
-					curObservation.append(self.fishInVision[i].y)
+					#print(len(self.foodInVision))
+					#print(self.foodInVision[i])
+					curObservation.append(self.foodInVision[i].x)
+					curObservation.append(self.foodInVision[i].y)
 					curObservation.append(1)
 					counter = counter + 1
 				# Remainder
-				for i in range(0, len(targetFoodSize) - counter-1):
-					curObservation.append(self.fishInVision[i].x)
-					curObservation.append(self.fishInVision[i].y)
-					curObservation.append(1)
+				for i in range(0, targetFoodSize - counter-1):
+					curObservation.append(0)
+					curObservation.append(0)
+					curObservation.append(0)
 			else:
 				for i in range(0, targetFoodSize-1):
-					print(len(self.fishInVision))
-					print(self.fishInVision[i])
-					curObservation.append(self.fishInVision[i].x)
-					curObservation.append(self.fishInVision[i].y)
+					#print(len(self.foodInVision))
+					#print(self.foodInVision[i])
+					curObservation.append(self.foodInVision[i].x)
+					curObservation.append(self.foodInVision[i].y)
 					curObservation.append(1)
 		else:
 			for i in range(0, 14):
