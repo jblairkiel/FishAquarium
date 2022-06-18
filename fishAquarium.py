@@ -5,11 +5,18 @@ import pygame
 import os
 import random
 from copy import deepcopy
+import numpy as np
+import tflearn
+import math
+from tflearn.layers.core import input_data, fully_connected
+from tflearn.layers.estimator import regression
 
 class FishAquariumGame():
 
 	def __init__(self):
 		pygame.init()
+		self.fishNNDataFile = "fish_nn.tflearn"
+		self.nn_model = self.model()
 		self.ScreenWidth = 1400 # 1600
 		self.ScreenHeight = 800 # 1000
 		self.ScrCenterX = self.ScreenWidth / 2
@@ -25,6 +32,12 @@ class FishAquariumGame():
 		self.Insp = Inspector();
 
 	def start(self):
+		trainingData = []
+
+		if (os.path.exists("fishNNDataFile.tflearn")):
+			#os.remove("fishNNDataFile.tflearn")
+			self.nn_model.load(self.filename)
+
 		while not self.gameOver:
 			if self.DEBUG:
 
@@ -69,6 +82,10 @@ class FishAquariumGame():
 							self.fc.killAll()
 						if event.key == pygame.K_w:
 							self.fc.writeFishToFile()
+						if event.key == pygame.K_t:
+							#Train Neural Network with Key "T"
+							nn_model = self.train_model(trainingData, nn_model)
+							self.test_model(nn_model)
 					if event.type == pygame.MOUSEBUTTONDOWN:
 						if event.button == 1: #left click
 							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
@@ -85,7 +102,9 @@ class FishAquariumGame():
 			#Main Game Loop
 			self.screen.fill((0,0,0))
 			self.fc.lookFish(self.screen)
-			self.fc.moveFish()
+			curTrainingData = self.fc.moveFish()
+			np.append(trainingData, curTrainingData)
+
 			#TODO determine move from matrix of vision (backpropogate to this data structure)
 			self.fc.feedFish()
 
@@ -97,6 +116,20 @@ class FishAquariumGame():
 			pygame.display.flip()
 
 			self.clock.tick(60)
+
+	def model(self):
+		network = input_data(shape=[None, 4, 1], name='input')
+		network = fully_connected(network, 1, activation='linear')
+		network = regression(network, optimizer='adam', learning_rate=self.lr, loss='mean_square', name='target')
+		model = tflearn.DNN(network, tensorboard_dir='log')
+		return model
+
+	def train_model(self, training_data, model):
+		X = np.array([i[0] for i in training_data]).reshape(-1, 4, 1)
+		y = np.array([i[1] for i in training_data]).reshape(-1, 1)
+		model.fit(X,y, n_epoch = 1, shuffle = True, run_id = self.fishNNDataFile)	
+		model.save(self.fishNNDataFile)
+		return model
 
 class Inspector():
 
@@ -237,10 +270,11 @@ class FishController():
 			fish.draw(screen, curTicks)
 
 	def moveFish(self):
+		tempTrainingData = np.array()
 		for thisFish in self.fishInTank:
 			#Get Objects in vision
 			# Should investigate Speeding up
-			thisFish.objectsInVision = []
+			#thisFish.objectsInVision = []
 			thisFish.fishInVision = []
 			thisFish.foodInVision = []
 			for food in self.fishFood:
@@ -249,7 +283,13 @@ class FishController():
 				if (otherFish != thisFish):
 					thisFish.checkAndAddIfIsInVision(otherFish)
 			
-			thisFish.move()
+
+			#Oberservation
+			observationBefore = thisFish.generateObservation()
+			action = thisFish.move()
+			np.append(observationBefore, action)
+			tempTrainingData.append([observationBefore, int(thisFish.alive)])
+		return tempTrainingData
 
 	def feedFish(self):
 		isAFishAlive = None
@@ -317,7 +357,7 @@ class Fish():
 		self.deathNum = 15000 #should be variable rate later
 		self.birth = clock
 		self.showVision = True
-		self.objectsInVision = []
+		#self.objectsInVision = []
 		self.fishInVision = []
 		self.foodInVision = []
 		self.visionValueFront = 60
@@ -341,7 +381,7 @@ class Fish():
 		#If within Bounds add to vision
 		if ((acquariumObject.y < self.lookingBounds[1] + self.lookingBounds[3] and acquariumObject.y  >self.lookingBounds[1]) and # Checks x coords
 			(acquariumObject.x > self.lookingBounds[0] and acquariumObject.x < self.lookingBounds[0] + self.lookingBounds[2])):  # Checks y coords
-			self.objectsInVision.append(acquariumObject)
+			#self.objectsInVision.append(acquariumObject)
 			if (acquariumObject.acquariumType == "Food"):
 				self.foodInVision.append(acquariumObject)
 			elif(acquariumObject.acquariumType == "Fish"):
@@ -475,6 +515,30 @@ class Fish():
 
 			self.x = tempX
 			self.y = tempY
+		return [dx, dy]
+
+	def realMove(self):
+		print("Here")
+
+
+	def generateObservation(self):
+
+		curObservation = [
+				self.x,
+				self.y
+		]
+
+		# for i in range(0, len(self.fishInVision)):
+		# 	curObservation.append(self.fishInVision[i].x)
+		# 	curObservation.append(self.fishInVision[i].y)
+		# 	curObservation.append(0)
+
+		for i in range(0, len(self.foodInVision)):
+			curObservation.append(self.fishInVision[i].x)
+			curObservation.append(self.fishInVision[i].y)
+			curObservation.append(0)
+		return np.array(curObservation)
+			
 
 	def eat(self, food):
 	
