@@ -120,7 +120,7 @@ class FishAquariumGame():
 	def model(self):
 		network = input_data(shape=[None, 4, 1], name='input')
 		network = fully_connected(network, 1, activation='linear')
-		network = regression(network, optimizer='adam', learning_rate=self.lr, loss='mean_square', name='target')
+		network = regression(network, optimizer='adam', learning_rate=1e-2, loss='mean_square', name='target')
 		model = tflearn.DNN(network, tensorboard_dir='log')
 		return model
 
@@ -235,7 +235,6 @@ class FishController():
 			#print("Fish X + lenX: " + str(fish.x + fish.lenX) + " Fish Y + lenY: " + str(fish.y + fish.lenY))
 			fishIn = self.inFishBounds(fish, x, y)
 			if(fishIn):
-				print("made it here")
 				chosenFish = fish
 		return chosenFish 
 	
@@ -255,10 +254,8 @@ class FishController():
 
 	def inFishBounds(self, fish, x, y):
 		if(fish.x < x < fish.x + fish.lenX and fish.y < y < fish.y + fish.lenY):
-			print("true")
 			return True;
 		else:
-			print("false")
 			return False;
 
 	def lookFish(self, screen):
@@ -270,7 +267,7 @@ class FishController():
 			fish.draw(screen, curTicks)
 
 	def moveFish(self):
-		tempTrainingData = np.array()
+		tempTrainingData = []
 		for thisFish in self.fishInTank:
 			#Get Objects in vision
 			# Should investigate Speeding up
@@ -323,7 +320,7 @@ class Food():
 
 	def __init__(self, x=0, y=0):
 		self.uid = random.randint(0,63000)
-		print("Food uid is: " + str(self.uid))
+		#print("Food uid is: " + str(self.uid))
 		self.acquariumType = "Food"
 		self.x = x
 		self.y = y
@@ -421,7 +418,7 @@ class Fish():
 						fishVals.append(tempParentStr)
 					elif (attr == "ancestors"):
 						tempAncestors = getattr(ancestors, attr)
-						print(tempAncestors)
+						#print(tempAncestors)
 						tempAncestorsStr = ""
 						if (tempAncestors != []):
 							for anc in tempAncestors:
@@ -448,7 +445,7 @@ class Fish():
 			elif (attr == "ancestors"):
 				tempAncestors = getattr(self, attr)
 				tempAncestorsStr = ""
-				print(tempAncestors)
+				#print(tempAncestors)
 				if (tempAncestors != []):
 					for anc in tempAncestors:
 						tempAncestorsStr = tempAncestorsStr + str(anc.uid) + ","
@@ -523,6 +520,8 @@ class Fish():
 
 	def generateObservation(self):
 
+		#Target is an array of 17, 2 for the currentFishPosition, 15 for the food positions
+		targetFoodSize = 5
 		curObservation = [
 				self.x,
 				self.y
@@ -532,12 +531,32 @@ class Fish():
 		# 	curObservation.append(self.fishInVision[i].x)
 		# 	curObservation.append(self.fishInVision[i].y)
 		# 	curObservation.append(0)
-
-		for i in range(0, len(self.foodInVision)):
-			curObservation.append(self.fishInVision[i].x)
-			curObservation.append(self.fishInVision[i].y)
-			curObservation.append(0)
-		return np.array(curObservation)
+		if (self.foodInVision is not []):
+			if (len(self.foodInVision) < targetFoodSize):
+				counter = 0
+				for i in range(0, len(self.foodInVision)):
+					print(len(self.fishInVision))
+					print(self.fishInVision[i])
+					curObservation.append(self.fishInVision[i].x)
+					curObservation.append(self.fishInVision[i].y)
+					curObservation.append(1)
+					counter = counter + 1
+				# Remainder
+				for i in range(0, len(targetFoodSize) - counter-1):
+					curObservation.append(self.fishInVision[i].x)
+					curObservation.append(self.fishInVision[i].y)
+					curObservation.append(1)
+			else:
+				for i in range(0, targetFoodSize-1):
+					print(len(self.fishInVision))
+					print(self.fishInVision[i])
+					curObservation.append(self.fishInVision[i].x)
+					curObservation.append(self.fishInVision[i].y)
+					curObservation.append(1)
+		else:
+			for i in range(0, 14):
+				curObservation.append(0)
+		return curObservation
 			
 
 	def eat(self, food):
