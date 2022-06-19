@@ -1,3 +1,4 @@
+from ast import alias
 import csv
 import math
 from re import S
@@ -26,7 +27,7 @@ class FishAquariumGame():
 		self.clock = pygame.time.Clock()
 		self.mouseX = 0;
 		self.mouseY = 0;
-		self.DEBUG = False
+		self.DEBUG = True
 
 		self.fc = FishController();
 		self.Insp = Inspector();
@@ -38,33 +39,63 @@ class FishAquariumGame():
 			#os.remove("fishNNDataFile.tflearn")
 			self.nn_model.load(self.filename)
 
-		while not self.gameOver:
-			if self.DEBUG:
+		#TRaining Debug
+		if self.DEBUG:
 
-				for event in pygame.event.get():
-					if event.type == pygame.QUIT:
-						self.gameOver = True
-					if event.type == pygame.KEYDOWN:
-						if event.key == pygame.K_SPACE:
-							self.fc.addFish(self.mouseX, self.mouseY)
-						if event.key == pygame.K_n:
-							self.fc.reproduceAll(pygame.time.get_ticks())
-						if event.key == pygame.K_k:
-							self.fc.killAll()
+			if (os.path.exists("generation.csv")):
+				os.remove("generation.csv")
+
+			for i in range(0, 150):
+				self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
+
+			numTimesToSimulate = 1000
+			for i in range(0, numTimesToSimulate):
+				self.fc.addFish(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10), pygame.time.get_ticks())
+				elapsedTime = 0
+				for j in range(0, 10):
+					self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
+				
+				while not self.fc.isAllFishDead():
+					for event in pygame.event.get():
+						if event.type == pygame.QUIT:
+							self.gameOver = True
+				
+
+					#Main Game Loop
+					self.screen.fill((0,0,0))
+					self.fc.lookFish(self.screen)
+					curTrainingData = self.fc.moveFish()
+					#TODO determine move from matrix of vision (backpropogate to this data structure)
+					didFishFeed = self.fc.feedFish()
+					trainingToAdd = [curTrainingData, int(didFishFeed)]
+					trainingData.append(trainingToAdd)
+
+					elapsedTime += pygame.time.get_ticks()
+					if elapsedTime > 5000:
+						#print(trainingToAdd)
+						elapsedTime = 0 
+					
+					#curTrainingData = np.append([trainingData], curTrainingData)
+
+					#Draws
+					self.fc.drawFood(self.screen)
+					self.fc.drawFish(self.screen, pygame.time.get_ticks())
+					self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
+					
+					pygame.display.flip()
+
+					self.clock.tick(120)
+				self.fc.writeFishToFile()
+				#print(trainingData)
+				self.nn_model = self.train_model(trainingData, self.nn_model)
+				self.fc.fishInTank[0].alive = True
+				self.fc.reproduceAll(pygame.time.get_ticks())
+				self.fc.fishInTank.pop(0)
 
 
-					if event.type == pygame.MOUSEBUTTONDOWN:
-						if event.button == 1: #left click
-							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY, pygame.time.get_ticks())
-						if event.button == 3: #right click
-							self.fc.addFood(self.mouseX, self.mouseY)
-	
-					if event.type == pygame.MOUSEMOTION:
-						position = event.pos
-						self.mouseX = position[0]
-						self.mouseY = position[1]	
+		else:
 
-			else:
+			while not self.gameOver:
 							
 				for event in pygame.event.get():
 					if event.type == pygame.QUIT:
@@ -99,33 +130,33 @@ class FishAquariumGame():
 						self.mouseX = position[0]
 						self.mouseY = position[1]	
 			
-			#Main Game Loop
-			self.screen.fill((0,0,0))
-			self.fc.lookFish(self.screen)
-			curTrainingData = self.fc.moveFish()
-			np.append(trainingData, curTrainingData)
+				#Main Game Loop
+				self.screen.fill((0,0,0))
+				self.fc.lookFish(self.screen)
+				curTrainingData = self.fc.moveFish()
+				curTrainingData = np.append([trainingData], curTrainingData)
 
-			#TODO determine move from matrix of vision (backpropogate to this data structure)
-			self.fc.feedFish()
+				#TODO determine move from matrix of vision (backpropogate to this data structure)
+				self.fc.feedFish()
 
-			#Draws
-			self.fc.drawFood(self.screen)
-			self.fc.drawFish(self.screen, pygame.time.get_ticks())
-			self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
-			
-			pygame.display.flip()
+				#Draws
+				self.fc.drawFood(self.screen)
+				self.fc.drawFish(self.screen, pygame.time.get_ticks())
+				self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
+				
+				pygame.display.flip()
 
-			self.clock.tick(60)
+				self.clock.tick(60)
 
 	def model(self):
-		network = input_data(shape=[None, 4, 1], name='input')
+		network = input_data(shape=[None, 16, 1], name='input')
 		network = fully_connected(network, 1, activation='linear')
 		network = regression(network, optimizer='adam', learning_rate=1e-2, loss='mean_square', name='target')
 		model = tflearn.DNN(network, tensorboard_dir='log')
 		return model
 
 	def train_model(self, training_data, model):
-		X = np.array([i[0] for i in training_data]).reshape(-1, 4, 1)
+		X = np.array([i[0] for i in training_data]).reshape(-1, 16, 1)
 		y = np.array([i[1] for i in training_data]).reshape(-1, 1)
 		model.fit(X,y, n_epoch = 1, shuffle = True, run_id = self.fishNNDataFile)	
 		model.save(self.fishNNDataFile)
@@ -182,8 +213,6 @@ class FishController():
 
 	def writeFishToFile(self):
 	
-		if (os.path.exists("generation.csv")):
-			os.remove("generation.csv")
 			
 		with open('generation.csv', 'wt', newline='') as csvfile:
 			genWriter = csv.writer(csvfile, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
@@ -267,7 +296,7 @@ class FishController():
 			fish.draw(screen, curTicks)
 
 	def moveFish(self):
-		tempTrainingData = []
+		observationBefore = []
 		for thisFish in self.fishInTank:
 			#Get Objects in vision
 			# Should investigate Speeding up
@@ -284,9 +313,12 @@ class FishController():
 			#Oberservation
 			observationBefore = thisFish.generateObservation()
 			action = thisFish.move()
-			np.append(observationBefore, action)
-			tempTrainingData.append([observationBefore, int(thisFish.alive)])
-		return tempTrainingData
+			#action = np.append([observationBefore], action)
+			observationBefore = np.append([ action[0]], observationBefore)
+			observationBefore = np.append([ action[1]], observationBefore) 
+			
+			#observationBefore = np.append([ int(thisFish.alive)], observationBefore)
+		return observationBefore
 
 	def feedFish(self):
 		isAFishAlive = None
@@ -302,6 +334,14 @@ class FishController():
 					del food
 		if (fishCount > 0) and (isAFishAlive == None):
 			isAFishAlive = False
+		return len(self.eatenFood) > 0
+
+	def isAllFishDead(self):
+		boolAllDead = True
+		for fish in self.fishInTank:
+			if fish.alive:
+				boolAllDead = False
+		return boolAllDead
 
 
 		# if not (os.path.exists("generation.csv")):
@@ -417,13 +457,7 @@ class Fish():
 							tempParentStr = tempParent.uid
 						fishVals.append(tempParentStr)
 					elif (attr == "ancestors"):
-						tempAncestors = getattr(ancestors, attr)
-						#print(tempAncestors)
-						tempAncestorsStr = ""
-						if (tempAncestors != []):
-							for anc in tempAncestors:
-								tempAncestorsStr = tempAncestorsStr + str(anc.uid) + ","
-						fishVals.append(tempAncestorsStr)
+						fishVals.append("")
 					else:
 						fishVals.append(getattr(ancestors, attr))
 						
@@ -443,13 +477,7 @@ class Fish():
 					tempParentStr = tempParent.uid
 				fishVals.append(tempParentStr)
 			elif (attr == "ancestors"):
-				tempAncestors = getattr(self, attr)
-				tempAncestorsStr = ""
-				#print(tempAncestors)
-				if (tempAncestors != []):
-					for anc in tempAncestors:
-						tempAncestorsStr = tempAncestorsStr + str(anc.uid) + ","
-				fishVals.append(tempAncestorsStr)
+				fishVals.append("")
 			else:
 				fishVals.append(getattr(self, attr))
 
@@ -522,12 +550,12 @@ class Fish():
 
 	def generateObservation(self):
 
-		#Target is an array of 17, 2 for the currentFishPosition, 15 for the food positions
+		#Target is an array of 16, 2 for the currentFishPosition, 15 for the food positions
 		targetFoodSize = 5
-		curObservation = [
+		curObservation = np.array([
 				self.x,
 				self.y
-		]
+		])
 
 		# for i in range(0, len(self.fishInVision)):
 		# 	curObservation.append(self.fishInVision[i].x)
@@ -539,25 +567,25 @@ class Fish():
 				for i in range(0, len(self.foodInVision)):
 					#print(len(self.foodInVision))
 					#print(self.foodInVision[i])
-					curObservation.append(self.foodInVision[i].x)
-					curObservation.append(self.foodInVision[i].y)
-					curObservation.append(1)
+					curObservation = np.append([self.foodInVision[i].x], curObservation)
+					curObservation = np.append([self.foodInVision[i].y], curObservation)
+					curObservation = np.append([1], curObservation)
 					counter = counter + 1
 				# Remainder
 				for i in range(0, targetFoodSize - counter-1):
-					curObservation.append(0)
-					curObservation.append(0)
-					curObservation.append(0)
+					curObservation = np.append([0], curObservation)
+					curObservation = np.append([0], curObservation)
+					curObservation = np.append([0], curObservation)
 			else:
 				for i in range(0, targetFoodSize-1):
 					#print(len(self.foodInVision))
 					#print(self.foodInVision[i])
-					curObservation.append(self.foodInVision[i].x)
-					curObservation.append(self.foodInVision[i].y)
-					curObservation.append(1)
+					curObservation = np.append([self.foodInVision[i].x], curObservation)
+					curObservation = np.append([self.foodInVision[i].y], curObservation)
+					curObservation = np.append([1], curObservation)
 		else:
 			for i in range(0, 14):
-				curObservation.append(0)
+				np.append([0], curObservation)
 		return curObservation
 			
 
