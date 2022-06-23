@@ -1,0 +1,4 @@
+*tflearn*
+*.tflearn.*
+*.data*
+*.index
