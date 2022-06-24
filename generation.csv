@@ -1,2 +1,0 @@
-uid	Health	acquariumType	age	alive	ancestors	birth	color	deathNum	fishInVision	foodInVision	generation	hitbox	lenX	lenY	lookingBounds	parent	showVision	uid	visionValueFront	visionValueLeft	visionValueRight	x	y
-34220	175	Fish	15002	False		724909	(66, 75, 134)	15000	[]	[22499, 47075, 57587, 5516, 10304, 53467, 58302, 58385, 2033, 61410, 9429, 27425, 3883, 39686, 46949, 37893, 57106, 21618, 45620, 58095, 62120, 56072, 29809, 57787, 32678, 56257]	1	(489, 624, 60, 60)	60	60	(429, 564, 609, 744)		True	34220	60	10	10	489	624
