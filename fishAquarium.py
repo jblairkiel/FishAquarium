@@ -49,6 +49,7 @@ class FishAquariumGame():
 
 			numTimesToSimulate = 10
 			trainingData = []
+			allActions = []
 			for i in range(0, numTimesToSimulate):
 				self.fc.addFish(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10), pygame.time.get_ticks())
 				elapsedTime = 0
@@ -65,14 +66,23 @@ class FishAquariumGame():
 					self.screen.fill((0,0,0))
 					curTrainingData = self.fc.lookFish(self.screen)
 					action = self.fc.moveFish()
-					curTrainingData = np.append([action[0]], curTrainingData)
-					curTrainingData = np.append([action[1]], curTrainingData)
 					curTrainingData = np.append([action[2]], curTrainingData)
-					#TODO determine move from matrix of vision (backpropogate to this data structure)
+					curTrainingData = np.append([action[1]], curTrainingData)
 					didFishFeed = self.fc.feedFish()
-					trainingToAdd = [curTrainingData, int(didFishFeed)]
-					trainingData.append(trainingToAdd)
+					didFishMoveCloserToFood = int(action[0])
+					
+					actionValue = -1
+					if didFishMoveCloserToFood:
+						if didFishFeed: 
+							actionValue = 5
+						else:
+							actionValue = 3
 
+					#TODO determine move from matrix of vision (backpropogate to this data structure)
+					trainingToAdd = [curTrainingData, int(actionValue)]
+					trainingData.append(trainingToAdd)
+					allActions.append([i, curTrainingData[-1], curTrainingData[-2], action[2], action[1], actionValue])
+					
 					elapsedTime += pygame.time.get_ticks()
 					if elapsedTime > 5000:
 						#print(trainingToAdd)
@@ -89,14 +99,15 @@ class FishAquariumGame():
 
 					self.clock.tick(120)
 				self.fc.writeFishToFile()
+				self.fc.writeActionsToFile(allActions)
 				#print(trainingData)
 				self.fc.fishInTank[0].alive = True
 				self.fc.reproduceAll(pygame.time.get_ticks())
 				self.fc.fishInTank.pop(0)
-			try:
-				self.nn_model = self.train_model(trainingData, self.nn_model)
-			except:
-				[print(i) for i in trainingData if len(i[0]) != 8]
+				try:
+					self.nn_model = self.train_model(trainingData, self.nn_model)
+				except:
+					[print(i) for i in trainingData if len(i[0]) != 7]
 				
 			#self.test_model(self.nn_model)
 		else:
@@ -130,19 +141,30 @@ class FishAquariumGame():
 						tempAction = self.fc.fishInTank[0].generateMove()
 						tempTrainingData = np.append([tempAction[0]], tempTrainingData)
 						tempTrainingData = np.append([tempAction[1]], tempTrainingData)
-						tempTrainingData = np.append([tempAction[2]], tempTrainingData)
+						#tempTrainingData = np.append([tempAction[2]], tempTrainingData)
 						actions.append([tempAction[0], tempAction[1]])
-						tempTrainingData = np.reshape([tempTrainingData], (-1, 8, 1))
+						tempTrainingData = np.reshape([tempTrainingData], (-1, 7, 1))
 						#tempTrainingData = np.expand_dims(tempTrainingData,axis=-1)
 						predictedAction = self.nn_model.predict(tempTrainingData)
 						predictedActions.append(predictedAction)
 					curAction = np.argmax(np.array(predictedActions))
 					actionDx = actions[curAction][0]
 					actionDy = actions[curAction][1]
+					print("CurAction Index: " + str(curAction) )
+					print("Actions: " + str(actions[curAction]))
 
 					currentMove = self.fc.moveFish([actionDx, actionDy])
 					didFishFeed = self.fc.feedFish()
-					trainingToAdd = [curTrainingData, int(didFishFeed)]
+					didFishMoveCloserToFood = int(currentMove[0]) #This is the resultingAction needs real variable
+					
+					actionValue = -1
+					if didFishMoveCloserToFood:
+						if didFishFeed: 
+							actionValue = 2
+						else:
+							actionValue = 1
+
+					trainingToAdd = [curTrainingData, actionValue]
 					trainingData.append(trainingToAdd)
 
 					elapsedTime += pygame.time.get_ticks()
@@ -215,7 +237,7 @@ class FishAquariumGame():
 		# 		self.clock.tick(80)
 
 	def model(self):
-		network = input_data(shape=[None, 8, 1], name='input')
+		network = input_data(shape=[None, 7, 1], name='input')
 		network = fully_connected(network, 20, activation='relu')
 		network = fully_connected(network, 1, activation='linear')
 		network = regression(network, optimizer='adam', learning_rate=1e-2, loss='mean_square', name='target')
@@ -223,7 +245,7 @@ class FishAquariumGame():
 		return model
 
 	def train_model(self, training_data, model):
-		X = np.array([i[0] for i in training_data]).reshape(-1, 8, 1)
+		X = np.array([i[0] for i in training_data]).reshape(-1, 7, 1)
 		y = np.array([i[1] for i in training_data]).reshape(-1, 1)
 		model.fit(X,y, n_epoch = 1, shuffle = True, run_id = self.fishNNDataFile)	
 		model.save(self.fishNNDataFile)
@@ -254,7 +276,7 @@ class FishAquariumGame():
 				self.fc.lookFish(self.screen)
 
 				for action in range(-1, 2):
-					np.append([action], predictions).reshape(-1, 8, 1)
+					np.append([action], predictions).reshape(-1, 7, 1)
 					predictedAction = model.predict(predictions)
 					np.append([predictedAction], predictions)
 
@@ -356,6 +378,13 @@ class FishController():
 			genWriter.writerow(fishAttributes)
 			for writeFish in self.fishInTank:
 				writeFish.writeCSVFish(genWriter)
+
+	def writeActionsToFile(self, actionList):
+		with open('actions.csv', 'wt', newline='') as csvfile:
+			actionWriter = csv.writer(csvfile, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+			actionWriter.writerow(["Gen", "Fish X", "Fish Y", "Dx", "Dy", 'Action'])
+			for action in actionList:
+				actionWriter.writerow(action)
 
 	def killAll(self):
 		#Remove the dead
@@ -655,7 +684,7 @@ class Fish():
 		#Fish
 		pygame.draw.rect(screen, self.color, pygame.Rect(self.x, self.y, self.lenX, self.lenY))
 
-	def generateMove(self):
+	def generateMove(self, omitMovedCloser=False):
 		
 		dx = 0
 		dy = 0
@@ -676,16 +705,19 @@ class Fish():
 				tempY = self.y + dy
 		
 		#If moved closer to food
-		closestIndex, closestValues = self.getClosestFood(tempX, tempY)
 		movedCloser = 0
-		if len(closestIndex) != 0:
-			self.distanceToClosestFood = closestValues[0]
-			if self.distanceToClosestFood < self.lastDistanceToClosestFood:
-				movedCloser = 1
-		else:
-			self.distanceToClosestFood = 999999
+		if not omitMovedCloser:
+			closestValues, closestIndex = self.getClosestFood(tempX, tempY)
+			
 
-		self.lastDistanceToClosestFood = self.distanceToClosestFood
+			if len(closestIndex) != 0:
+				self.distanceToClosestFood = closestValues[0]
+				if self.distanceToClosestFood < self.lastDistanceToClosestFood:
+					movedCloser = 1
+			else:
+				self.distanceToClosestFood = 999999
+
+			self.lastDistanceToClosestFood = self.distanceToClosestFood
 
 		return [dx, dy, movedCloser]
 
@@ -694,13 +726,13 @@ class Fish():
 			dx = dxdyAction[0] 
 			dy = dxdyAction[1]
 		else:
-			[dx, dy, movedCloser] = self.generateMove()
+			[dx, dy, movedCloser] = self.generateMove(omitMovedCloser=True)
 		
 		self.x = self.x + dx
 		self.y = self.y + dy
 
 		#If moved closer to food
-		closestIndex, closestValues = self.getClosestFood()
+		closestValues, closestIndex = self.getClosestFood()
 		movedCloser = 0
 		if len(closestIndex) != 0:
 			self.distanceToClosestFood = closestValues[0]
@@ -740,13 +772,14 @@ class Fish():
 		#Target is an array of 16, 2 for the currentFishPosition, 15 for the food positions
 		targetFoodSize = 1
 		customLimiterSize = 2 + (3* targetFoodSize)
+		isFood = 1
+		isNotFood = 0
 		curObservation = np.array([
 				self.x,
 				self.y
 		])
 
 		# Get Closest
-
 		if (len(self.foodInVision) != 0):
 			closestIndex = []
 			closestValues = []
@@ -759,17 +792,14 @@ class Fish():
 					#print(self.foodInVision[i])
 					curObservation = np.append(self.foodInVision[closestIndex[i]-1].x, curObservation)
 					curObservation = np.append(self.foodInVision[closestIndex[i]-1].y, curObservation)
-					curObservation = np.append([1], curObservation)
+					curObservation = np.append([isFood], curObservation)
 					counter = counter + 1
 
 
 				# Remainder
 				for i in range(0, customLimiterSize - 2):
-					curObservation = np.append([0], curObservation)
+					curObservation = np.append([isNotFood], curObservation)
 			
-				if len(curObservation) != 5:
-					print("Case 1")
-					print(len(curObservation))
 			else:
 
 				for i in range(0, targetFoodSize):
@@ -777,19 +807,13 @@ class Fish():
 					#print(self.foodInVision[i])
 					curObservation = np.append(self.foodInVision[closestIndex[i]-1].x, curObservation)
 					curObservation = np.append(self.foodInVision[closestIndex[i]-1].y, curObservation)
-					curObservation = np.append([1], curObservation)
+					curObservation = np.append([isFood], curObservation)
 
-				if len(curObservation) != 5:
-					print("Case 2")
-					print(len(curObservation))
 		else:
 
 			for i in range(0, (targetFoodSize*3)):
-				curObservation = np.append([0], curObservation)
+				curObservation = np.append([isNotFood], curObservation)
 
-			if len(curObservation) != 5:
-				print("Case 3")
-				print(len(curObservation))
 		return curObservation
 			
 
