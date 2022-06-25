@@ -54,7 +54,7 @@ class FishAquariumTrainer():
 				while not self.fc.isAllFishDead():
 
     				#Sleep to get simmed time
-					time.sleep(.75/self.timeToSpeedUp)
+					time.sleep(.3/self.timeToSpeedUp)
 					#print(str(self.getCustomTimeTicks() - startTime))
 					#sleep(60 - time() % 60)
 				
@@ -465,7 +465,7 @@ class Fish():
 		self.lastDistanceToClosestFood = 999999
 		self.Health = 100
 		if timeToSpeedUp != None:
-			self.deathNum = 15000/(timeToSpeedUp/40)
+			self.deathNum = 15000/(timeToSpeedUp/10)
 		else:
 			self.deathNum = 15000 #should be variable rate later
 		self.birth = clock
@@ -601,13 +601,21 @@ class Fish():
 			tempX = -999
 			tempY = -999
 
+			xCounter = 0
 			while ( boundX1 > tempX) or (tempX > boundX2 ):
 				dx = random.randint((0-self.moveSpeed) * int(self.Health / 100), self.moveSpeed * int(self.Health / 100));
 				tempX = self.x + dx;
+				xCounter = xCounter + 1
+				if xCounter > 10:
+					print("Problem Solving x")
 
+			yCounter = 0
 			while ( (boundY1 > tempY) or (tempY > boundY2)):
 				dy = random.randint((0-self.moveSpeed) * int(self.Health / 100), self.moveSpeed * int(self.Health / 100));
 				tempY = self.y + dy
+				yCounter = yCounter + 1
+				if yCounter > 10:
+					print("Problem Solving y")
 		
 		#If moved closer to food
 		movedCloser = 0
