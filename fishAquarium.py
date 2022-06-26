@@ -71,9 +71,9 @@ class FishAquariumTrainer():
 					actionValue = -1
 					if didFishMoveCloserToFood:
 						if didFishFeed: 
-							actionValue = 5
+							actionValue = 1
 						else:
-							actionValue = 3
+							actionValue = 0
 
 					#TODO determine move from matrix of vision (backpropogate to this data structure)
 					trainingToAdd = [curTrainingData, int(actionValue)]
@@ -189,9 +189,9 @@ class FishAquariumGame():
 				actionValue = -1
 				if didFishMoveCloserToFood:
 					if didFishFeed: 
-						actionValue = 2
-					else:
 						actionValue = 1
+					else:
+						actionValue = 0
 
 				trainingToAdd = [curTrainingData, actionValue]
 				trainingData.append(trainingToAdd)
@@ -652,6 +652,7 @@ class Fish():
 		return [dx, dy, movedCloser]
 
 	def move(self, dxdyAction=None, injectedAge=None, moveType="Training"):
+		#Deduct life
 		if moveType == "Game":
 			if self.alive:
 				self.age = injectedAge - self.birth
@@ -709,6 +710,23 @@ class Fish():
 			closestValues, closestIndex = zip(*sorted(zip(closestValues, closestIndex)))
 		return closestValues, closestIndex
 
+	
+	def getNormalizedValues(self, inputFoodX, inputFoodY):
+		normalizedValueX = 0
+		normalizedValueY = 0
+
+		if (self.x < inputFoodX):
+			normalizedValueX = 0
+		else:
+			normalizedValueX = 1
+		
+		if (self.y < inputFoodY):
+			normalizedValueY = 0
+		else:
+			normalizedValueY = 1
+
+		return normalizedValueX, normalizedValueY
+
 	def generateObservation(self):
 
 		#Target is an array of 16, 2 for the currentFishPosition, 15 for the food positions
@@ -732,8 +750,10 @@ class Fish():
 				for i in range(0, len(closestValues)-1):
 					#print(len(self.foodInVision))
 					#print(self.foodInVision[i])
-					curObservation = np.append(self.foodInVision[closestIndex[i]-1].x, curObservation)
-					curObservation = np.append(self.foodInVision[closestIndex[i]-1].y, curObservation)
+					normalizedValueX, normalizedValueY = self.getNormalizedValues(self.foodInVision[closestIndex[i]-1].x, self.foodInVision[closestIndex[i]-1].y)
+				
+					curObservation = np.append([normalizedValueX], curObservation)
+					curObservation = np.append(normalizedValueY, curObservation)
 					curObservation = np.append([isFood], curObservation)
 					counter = counter + 1
 
@@ -760,7 +780,7 @@ class Fish():
 			
 
 	def eat(self, food):
-	
+		eatingMultiplier = 1.5
 		if self.alive:
 			#returns eaten food
 			foodToEatIDs = []
@@ -779,6 +799,10 @@ class Fish():
 					(foo.x + foo.radius > self.hitbox[0] and foo.x - foo.radius < self.hitbox[0] + self.hitbox[2])):  # Checks y coords
 						self.Health = self.Health + foo.nutrition;
 						foodToEatIDs.append(foo.uid)		
+
+						#Add life
+						self.deathNum = self.deathNum * eatingMultiplier
+
 			return foodToEatIDs
 		
 debug = False			
