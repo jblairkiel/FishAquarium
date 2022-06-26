@@ -12,6 +12,7 @@ import math
 from tflearn.layers.core import input_data, fully_connected
 from tflearn.layers.estimator import regression
 import time
+from glob import glob
 
 class FishAquariumTrainer():
 
@@ -61,7 +62,7 @@ class FishAquariumTrainer():
 
 					#Main Game Loop
 					curTrainingData = self.fc.lookFish()
-					action = self.fc.moveFish(None, self.getCustomTimeTicks())
+					action = self.fc.moveFish(None, self.getCustomTimeTicks(), "Training")
 					curTrainingData = np.append([action[2]], curTrainingData)
 					curTrainingData = np.append([action[1]], curTrainingData)
 					didFishFeed = self.fc.feedFish()
@@ -103,7 +104,8 @@ class FishAquariumTrainer():
 		network = fully_connected(network, 20, activation='relu')
 		network = fully_connected(network, 1, activation='linear')
 		network = regression(network, optimizer='adam', learning_rate=1e-2, loss='mean_square', name='target')
-		model = tflearn.DNN(network) #, tensorboard_dir='log')
+		model = tflearn.DNN(network, tensorboard_dir='log')
+		#model = tflearn.DNN(network) #, tensorboard_dir='log')
 		return model
 
 	def train_model(self, training_data, model):
@@ -134,9 +136,10 @@ class FishAquariumGame():
 
 	def start(self):
 
-		if (os.path.exists("fishNNDataFile.tflearn")):
+		#if (os.path.exists(self.fishNNDataFile + "*")):
+		if [n for n in glob(self.fishNNDataFile + "*") if os.path.isfile(n)]:
 			#os.remove("fishNNDataFile.tflearn")
-			self.nn_model.load(self.filename)
+			self.nn_model.load(self.fishNNDataFile)
 
 
 			if (os.path.exists("generation.csv")):
@@ -146,76 +149,76 @@ class FishAquariumGame():
 				self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
 			self.fc.addFish(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10), pygame.time.get_ticks())
 
-			while not self.gameOver:
+			while not self.fc.isAllFishDead():
 				trainingData = []
 				predictions = []
 
 				elapsedTime = 0
-				while not self.fc.isAllFishDead():
-					for event in pygame.event.get():
-						if event.type == pygame.QUIT:
-							self.gameOver = True
+
+				#Main Game Loop
+				for event in pygame.event.get():
+					if event.type == pygame.QUIT:
+						self.gameOver = True
+				self.screen.fill((0,0,0))
+				curTrainingData = self.fc.lookFish()
+
+				#predict action
+				actions = []
+				predictedActions = []
+				for i in range(0, 4):
+					tempTrainingData = curTrainingData
+					tempAction = self.fc.fishInTank[0].generateMove()
+					tempTrainingData = np.append([tempAction[0]], tempTrainingData)
+					tempTrainingData = np.append([tempAction[1]], tempTrainingData)
+					#tempTrainingData = np.append([tempAction[2]], tempTrainingData)
+					actions.append([tempAction[0], tempAction[1]])
+					tempTrainingData = np.reshape([tempTrainingData], (-1, 7, 1))
+					#tempTrainingData = np.expand_dims(tempTrainingData,axis=-1)
+					predictedAction = self.nn_model.predict(tempTrainingData)
+					predictedActions.append(predictedAction)
+				curAction = np.argmax(np.array(predictedActions))
+				actionDx = actions[curAction][0]
+				actionDy = actions[curAction][1]
+				print("CurAction Index: " + str(curAction) )
+				print("Actions: " + str(actions[curAction]))
+
+				currentMove = self.fc.moveFish([actionDx, actionDy], pygame.time.get_ticks(), "Game")
+				didFishFeed = self.fc.feedFish()
+				didFishMoveCloserToFood = int(currentMove[0]) #This is the resultingAction needs real variable
 				
-					#Main Game Loop
-					self.screen.fill((0,0,0))
-					curTrainingData = self.fc.lookFish()
+				actionValue = -1
+				if didFishMoveCloserToFood:
+					if didFishFeed: 
+						actionValue = 2
+					else:
+						actionValue = 1
 
-					#predict action
-					actions = []
-					predictedActions = []
-					for i in range(0, 4):
-						tempTrainingData = curTrainingData
-						tempAction = self.fc.fishInTank[0].generateMove()
-						tempTrainingData = np.append([tempAction[0]], tempTrainingData)
-						tempTrainingData = np.append([tempAction[1]], tempTrainingData)
-						#tempTrainingData = np.append([tempAction[2]], tempTrainingData)
-						actions.append([tempAction[0], tempAction[1]])
-						tempTrainingData = np.reshape([tempTrainingData], (-1, 7, 1))
-						#tempTrainingData = np.expand_dims(tempTrainingData,axis=-1)
-						predictedAction = self.nn_model.predict(tempTrainingData)
-						predictedActions.append(predictedAction)
-					curAction = np.argmax(np.array(predictedActions))
-					actionDx = actions[curAction][0]
-					actionDy = actions[curAction][1]
-					print("CurAction Index: " + str(curAction) )
-					print("Actions: " + str(actions[curAction]))
+				trainingToAdd = [curTrainingData, actionValue]
+				trainingData.append(trainingToAdd)
 
-					currentMove = self.fc.moveFish([actionDx, actionDy], pygame.time.get_ticks())
-					didFishFeed = self.fc.feedFish()
-					didFishMoveCloserToFood = int(currentMove[0]) #This is the resultingAction needs real variable
-					
-					actionValue = -1
-					if didFishMoveCloserToFood:
-						if didFishFeed: 
-							actionValue = 2
-						else:
-							actionValue = 1
+				elapsedTime += pygame.time.get_ticks()
+				if elapsedTime > 5000:
+					#print(trainingToAdd)
+					elapsedTime = 0 
+				
+				#curTrainingData = np.append([trainingData], curTrainingData)
 
-					trainingToAdd = [curTrainingData, actionValue]
-					trainingData.append(trainingToAdd)
+				#Draws
+				self.fc.drawFood(self.screen)
+				self.fc.drawFish(self.screen, pygame.time.get_ticks())
+				self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
+				
+				pygame.display.flip()
 
-					elapsedTime += pygame.time.get_ticks()
-					if elapsedTime > 5000:
-						#print(trainingToAdd)
-						elapsedTime = 0 
-					
-					#curTrainingData = np.append([trainingData], curTrainingData)
-
-					#Draws
-					self.fc.drawFood(self.screen)
-					self.fc.drawFish(self.screen, pygame.time.get_ticks())
-					self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
-					
-					pygame.display.flip()
-
-					self.clock.tick(120)
+				self.clock.tick(120)
 	
 	def model(self):
 		network = input_data(shape=[None, 7, 1], name='input')
 		network = fully_connected(network, 20, activation='relu')
 		network = fully_connected(network, 1, activation='linear')
 		network = regression(network, optimizer='adam', learning_rate=1e-2, loss='mean_square', name='target')
-		model = tflearn.DNN(network) #, tensorboard_dir='log')
+		model = tflearn.DNN(network, tensorboard_dir='log')
+		#model = tflearn.DNN(network) #, tensorboard_dir='log')
 		return model
 
 	def train_model(self, training_data, model):
@@ -262,6 +265,7 @@ class FishController():
 	def __init__(self):
 		self.fishInTank = []
 		self.fishFood = []
+		self.eatenFood = []
 		self.defaultVisionValueFront = 20 #pixels square
 		self.defaultVisionValueLeft = 10 #pixels square
 		self.defaultVisionValueRight = 10 #pixels square
@@ -381,10 +385,10 @@ class FishController():
 			fish.draw(screen, curTicks)
 
 
-	def moveFish(self, dxdyAction=None, injectedCurTicks=None):
+	def moveFish(self, dxdyAction=None, injectedCurTicks=None, moveType="Training"):
 		observationBefore = []
 		for thisFish in self.fishInTank:
-			action = thisFish.move(dxdyAction, injectedCurTicks)
+			action = thisFish.move(dxdyAction, injectedCurTicks, moveType)
 			observationBefore = np.append([ action[0]], observationBefore)
 			observationBefore = np.append([ action[1]], observationBefore) 
 			observationBefore = np.append([ action[2]], observationBefore) 
@@ -608,6 +612,12 @@ class Fish():
 				xCounter = xCounter + 1
 				if xCounter > 10:
 					print("Problem Solving x")
+					if (tempX > boundX2):
+						dx = tempX - boundX2
+						tempY = boundX2
+					else:
+						dx = tempX - boundX1
+						tempY = boundX1
 
 			yCounter = 0
 			while ( (boundY1 > tempY) or (tempY > boundY2)):
@@ -616,6 +626,13 @@ class Fish():
 				yCounter = yCounter + 1
 				if yCounter > 10:
 					print("Problem Solving y")
+					if (tempY > boundY2):
+						dy = tempY - boundY2
+						tempY = boundY2
+					else:
+						dy = tempY - boundY1
+						tempY = boundY1
+
 		
 		#If moved closer to food
 		movedCloser = 0
@@ -634,13 +651,13 @@ class Fish():
 
 		return [dx, dy, movedCloser]
 
-	def move(self, dxdyAction=None, injectedAge=None):
-		if injectedAge == None:
+	def move(self, dxdyAction=None, injectedAge=None, moveType="Training"):
+		if moveType == "Game":
 			if self.alive:
-				self.age = time.perf_counter() - self.birth
+				self.age = injectedAge - self.birth
 				if (self.age > self.deathNum):
 					self.alive = False
-		else:
+		elif moveType == "Training":
 			if self.alive:
 				self.age = (injectedAge - self.birth) * 1000
 				if (self.age > self.deathNum):
@@ -764,7 +781,7 @@ class Fish():
 						foodToEatIDs.append(foo.uid)		
 			return foodToEatIDs
 		
-debug = True			
+debug = False			
 if debug:
 	fishTraining = FishAquariumTrainer()
 	fishTraining.train()
