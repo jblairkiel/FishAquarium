@@ -33,14 +33,11 @@ class FishAquariumGame():
 		self.Insp = Inspector()
 
 	def start(self):
-
 		if (os.path.exists("fishNNDataFile.tflearn")):
 			#os.remove("fishNNDataFile.tflearn")
 			self.nn_model.load(self.filename)
 
-		#TRaining Debug
 		if self.DEBUG:
-
 			if (os.path.exists("generation.csv")):
 				os.remove("generation.csv")
 
@@ -108,170 +105,60 @@ class FishAquariumGame():
 					self.nn_model = self.train_model(trainingData, self.nn_model)
 				except:
 					[print(i) for i in trainingData if len(i[0]) != 7]
-				
-			#self.test_model(self.nn_model)
-		else:
+			else:
 
-			if (os.path.exists("generation.csv")):
-				os.remove("generation.csv")
-
-			for i in range(0, 150):
-				self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
-			self.fc.addFish(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10), pygame.time.get_ticks())
-
-			while not self.gameOver:
-				trainingData = []
-				predictions = []
-
-				elapsedTime = 0
-				while not self.fc.isAllFishDead():
-					for event in pygame.event.get():
-						if event.type == pygame.QUIT:
-							self.gameOver = True
-				
-					#Main Game Loop
-					self.screen.fill((0,0,0))
-					curTrainingData = self.fc.lookFish(self.screen)
-
-					#predict action
-					actions = []
-					predictedActions = []
-					for i in range(0, 4):
-						tempTrainingData = curTrainingData
-						tempAction = self.fc.fishInTank[0].generateMove()
-						tempTrainingData = np.append([tempAction[0]], tempTrainingData)
-						tempTrainingData = np.append([tempAction[1]], tempTrainingData)
-						#tempTrainingData = np.append([tempAction[2]], tempTrainingData)
-						actions.append([tempAction[0], tempAction[1]])
-						tempTrainingData = np.reshape([tempTrainingData], (-1, 7, 1))
-						#tempTrainingData = np.expand_dims(tempTrainingData,axis=-1)
-						predictedAction = self.nn_model.predict(tempTrainingData)
-						predictedActions.append(predictedAction)
-					curAction = np.argmax(np.array(predictedActions))
-					actionDx = actions[curAction][0]
-					actionDy = actions[curAction][1]
-					print("CurAction Index: " + str(curAction) )
-					print("Actions: " + str(actions[curAction]))
-
-					currentMove = self.fc.moveFish([actionDx, actionDy])
-					didFishFeed = self.fc.feedFish()
-					didFishMoveCloserToFood = int(currentMove[0]) #This is the resultingAction needs real variable
-					
-					actionValue = -1
-					if didFishMoveCloserToFood:
-						if didFishFeed: 
-							actionValue = 2
-						else:
-							actionValue = 1
-
-					trainingToAdd = [curTrainingData, actionValue]
-					trainingData.append(trainingToAdd)
-
-					elapsedTime += pygame.time.get_ticks()
-					if elapsedTime > 5000:
-						#print(trainingToAdd)
-						elapsedTime = 0 
-					
-					#curTrainingData = np.append([trainingData], curTrainingData)
-
-					#Draws
-					self.fc.drawFood(self.screen)
-					self.fc.drawFish(self.screen, pygame.time.get_ticks())
-					self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
-					
-					pygame.display.flip()
-
-					self.clock.tick(120)
-		# else:
-
-		# 	while not self.gameOver:
-							
-		# 		for event in pygame.event.get():
-		# 			if event.type == pygame.QUIT:
-		# 				self.gameOver = True
-		# 			if event.type == pygame.KEYDOWN:
-		# 				if event.key == pygame.K_SPACE:
-		# 					for i in range(0, 5):
-		# 						#Centered fish
-		# 						#self.fc.addFish(random.randint(self.ScrCenterX - 200,self.ScrCenterX + 200), random.randint(self.ScrCenterY - 200,self.ScrCenterY + 200), pygame.time.get_ticks())
-		# 						#Spread out fish
-		# 						self.fc.addFish(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10), pygame.time.get_ticks())
-		# 				if event.key == pygame.K_n:
-		# 					self.fc.reproduceAll(pygame.time.get_ticks())
-		# 				if event.key == pygame.K_k:
-		# 					self.fc.killAll()
-		# 				if event.key == pygame.K_w:
-		# 					self.fc.writeFishToFile()
-		# 				if event.key == pygame.K_t:
-		# 					#Train Neural Network with Key "T"
-		# 					self.nn_model = self.train_model(trainingData, self.nn_model)
-		# 			if event.type == pygame.MOUSEBUTTONDOWN:
-		# 				if event.button == 1: #left click
-		# 					self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
-		# 				if event.button == 3: #right click
-		# 					for i in range(0, 50):
-		# 						self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
-					
-
-		# 			if event.type == pygame.MOUSEMOTION:
-		# 				position = event.pos
-		# 				self.mouseX = position[0]
-		# 				self.mouseY = position[1]	
-			
-		# 		#Main Game Loop
-		# 		self.screen.fill((0,0,0))
-		# 		self.fc.lookFish(self.screen)
-		# 		curTrainingData = self.fc.moveFish()
-		# 		curTrainingData = np.append([trainingData], curTrainingData)
-
-		# 		#TODO determine move from matrix of vision (backpropogate to this data structure)
-		# 		self.fc.feedFish()
-
-		# 		#Draws
-		# 		self.fc.drawFood(self.screen)
-		# 		self.fc.drawFish(self.screen, pygame.time.get_ticks())
-		# 		self.Insp.drawPane(self.screen, self.ScreenWidth, self.ScreenHeight, self.mouseX, self.mouseY)
-				
-		# 		pygame.display.flip()
-
-		# 		self.clock.tick(80)
-
-	def model(self):
-		network = input_data(shape=[None, 7, 1], name='input')
-		network = fully_connected(network, 20, activation='relu')
-		network = fully_connected(network, 1, activation='linear')
-		network = regression(network, optimizer='adam', learning_rate=1e-2, loss='mean_square', name='target')
-		model = tflearn.DNN(network) #, tensorboard_dir='log')
-		return model
-
-	def train_model(self, training_data, model):
-		X = np.array([i[0] for i in training_data]).reshape(-1, 7, 1)
-		y = np.array([i[1] for i in training_data]).reshape(-1, 1)
-		model.fit(X,y, n_epoch = 1, shuffle = True, run_id = self.fishNNDataFile)	
-		model.save(self.fishNNDataFile)
-		return model
-
-	def test_model(self, model):
-		
-		for i in range(0, 150):
-			self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
-
-		numTimesToSimulate = 100
-		for i in range(0, numTimesToSimulate):
-			self.fc.addFish(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10), pygame.time.get_ticks())
-			elapsedTime = 0
-			for j in range(0, 10):
-				self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
-			predictions = []
-			stepsArr = []
-			prev_observation = []
-			while not self.fc.isAllFishDead():
 				for event in pygame.event.get():
 					if event.type == pygame.QUIT:
 						self.gameOver = True
-			
+					if event.type == pygame.KEYDOWN:
+						if event.key == pygame.K_SPACE:
+							self.fc.addFish(self.mouseX, self.mouseY)
+						if event.key == pygame.K_n:
+							self.fc.reproduceAll(pygame.time.get_ticks())
+						if event.key == pygame.K_k:
+							self.fc.killAll()
 
-				#Main Game Loop
+
+					if event.type == pygame.MOUSEBUTTONDOWN:
+						if event.button == 1: #left click
+							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY, pygame.time.get_ticks())
+						if event.button == 3: #right click
+							self.fc.addFood(self.mouseX, self.mouseY)
+	
+					if event.type == pygame.MOUSEMOTION:
+						position = event.pos
+						self.mouseX = position[0]
+						self.mouseY = position[1]	
+
+			else:
+							
+				for event in pygame.event.get():
+					if event.type == pygame.QUIT:
+						self.gameOver = True
+					if event.type == pygame.KEYDOWN:
+						if event.key == pygame.K_SPACE:
+							for i in range(0, 5):
+								self.fc.addFish(random.randint(self.ScrCenterX - 200,self.ScrCenterX + 200), random.randint(self.ScrCenterY - 200,self.ScrCenterY + 200), pygame.time.get_ticks())
+						if event.key == pygame.K_n:
+							self.fc.reproduceAll(pygame.time.get_ticks())
+						if event.key == pygame.K_k:
+							self.fc.killAll()
+						if event.key == pygame.K_w:
+							self.fc.writeFishToFile()
+					if event.type == pygame.MOUSEBUTTONDOWN:
+						if event.button == 1: #left click
+							self.Insp.currentItem = self.fc.getAquariumItem(self.mouseX, self.mouseY)
+						if event.button == 3: #right click
+							for i in range(0, 50):
+								self.fc.addFood(random.randint(10,self.ScreenWidth - 10), random.randint(10,self.ScreenHeight + 10))
+					
+
+					if event.type == pygame.MOUSEMOTION:
+						position = event.pos
+						self.mouseX = position[0]
+						self.mouseY = position[1]	
+			
+			#Main Game Loop
 				self.screen.fill((0,0,0))
 				self.fc.lookFish(self.screen)
 
@@ -300,7 +187,6 @@ class FishAquariumGame():
 					#print(trainingToAdd)
 					elapsedTime = 0 
 				
-				#curTrainingData = np.append([trainingData], curTrainingData)
 
 				#Draws
 				self.fc.drawFood(self.screen)
@@ -321,6 +207,15 @@ class Inspector():
 
 	def __init__(self):
 		self.currentItem = None
+		self.hidden = True
+		
+		
+	def toggleShow(self):
+		if self.hidden == True:
+			self.hidden = False
+		else:
+			self.hidden = True
+		
 
 	def drawPane(self, screen, gameWidth, gameHeight, mosX, mosY):
 
@@ -360,7 +255,7 @@ class FishController():
 
 	def addFood(self, x=0, y=0):
 		food = Food(x,y)
-		self.fishFood.append(food);	
+		self.fishFood.append(food);    
 
 	def drawFood(self, screen):
 		for food in self.fishFood:
@@ -386,6 +281,15 @@ class FishController():
 			for action in actionList:
 				actionWriter.writerow(action)
 
+	def killAll(self):
+		#Remove the dead
+		tempFishTank = []
+		for fish in self.fishInTank:
+			if fish.alive:
+				tempFishTank.append(fish)
+			else:
+				del fish
+		self.fishInTank = tempFishTank
 	def killAll(self):
 		#Remove the dead
 		tempFishTank = []
