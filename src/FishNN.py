@@ -1,7 +1,8 @@
 import os
 import tensorflow
-class FishNN():
 
+
+class FishNN:
     def __init__(self):
         self.fishNNDataFile = "fish_nn.tflearn"
 
