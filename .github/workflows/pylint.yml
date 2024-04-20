@@ -1,0 +1,38 @@
+name: Pylint
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint
+    - name: Analysing the code with pylint
+      run: |
+        pylint $(git ls-files '*.py')
+    - name: Run pytest
+      # You may pin to the exact commit or the version.
+      # uses: pavelzw/pytest-action@c9e5b9c8d93290ff47dcf6a28c6b19ca0b42e487
+      uses: pavelzw/pytest-action@v2.1.0
+      with:
+        # Print a GitHub job summary
+        job-summary: True # optional, default is true
+        # Verbose output
+        verbose: True # optional, default is true
+        # Use emojis in the output
+        emoji:  True # optional, default is true
+        report-title: Pipelien Test # optional, default is Test Report
+        # Add 'Click to expand' to the report
+        click-to-expand: True # optional, default is true
+              
